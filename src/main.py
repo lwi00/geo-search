@@ -7,30 +7,32 @@ import argparse
 from datetime import datetime
 from typing import Dict, Optional
 from dotenv import load_dotenv
-from scraper.scraper import WebScraper
-from seo.seo_analyzer import SEOAnalyzer
-from seo.seo_metrics import SEOMetrics
+from .scraper import WebScraper
+from .seo_analyzer import SEOAnalyzer
+from .seo_metrics import SEOMetrics
+from .ai_readability import AIReadabilityAnalyzer
 
 class GeoSearch:
     def __init__(self):
         """Initialize GeoSearch with its components."""
         self.scraper = WebScraper()
         self.seo_analyzer = SEOAnalyzer()
-        self.seo_metrics = SEOMetrics()
+        self.metrics = SEOMetrics()
+        self.ai_readability = AIReadabilityAnalyzer()
         
         # Load environment variables
         load_dotenv()
         
     def analyze_url(self, url: str, output_file: Optional[str] = None) -> Dict:
         """
-        Analyze a URL using both SEO analysis and Gemini (to be implemented).
+        Analyze a URL for SEO and AI readability.
         
         Args:
-            url (str): The URL to analyze
+            url (str): URL to analyze
             output_file (Optional[str]): Path to save the analysis results
             
         Returns:
-            Dict: Analysis results
+            dict: Analysis results
         """
         print(f"\n🔍 Analyzing URL: {url}")
         
@@ -38,7 +40,7 @@ class GeoSearch:
         print("📥 Fetching page content...")
         html_content = self.scraper.fetch_page(url)
         if not html_content:
-            raise Exception(f"Failed to fetch content from {url}")
+            return {"error": f"Failed to fetch content from {url}"}
             
         # Perform SEO analysis
         print("📊 Performing SEO analysis...")
@@ -46,15 +48,18 @@ class GeoSearch:
         
         # Compute advanced metrics
         print("📈 Computing advanced metrics...")
-        advanced_metrics = self.seo_metrics.compute_metrics(seo_results)
+        metrics_results = self.metrics.compute_metrics(seo_results)
         
-        # Prepare final results
+        # Perform AI readability analysis
+        ai_readability = self.analyze_ai_readability(html_content, seo_results)
+        
+        # Combine results
         results = {
             'url': url,
             'timestamp': datetime.now().isoformat(),
             'seo_analysis': seo_results,
-            'advanced_metrics': advanced_metrics,
-            # Gemini analysis will be added here
+            'advanced_metrics': metrics_results,
+            'ai_readability': ai_readability,
         }
         
         # Save results if output file is specified
@@ -63,6 +68,28 @@ class GeoSearch:
             print(f"💾 Results saved to: {output_file}")
             
         return results
+    
+    def analyze_ai_readability(self, content: str, seo_analysis: Dict) -> Dict:
+        """
+        Analyze AI readability metrics.
+        
+        Args:
+            content (str): Raw HTML content
+            seo_analysis (dict): Output from SEOAnalyzer
+            
+        Returns:
+            dict: AI readability analysis results
+        """
+        # Analyze SEO structure
+        seo_structure = self.ai_readability.analyze_seo_structure(seo_analysis)
+
+        # Analyze semantic and structure
+        semantic_structure = self.ai_readability.analyze_semantic_and_structure(content, seo_analysis)
+
+        return {
+            "seo_structure": seo_structure,
+            "semantic_structure": semantic_structure
+        }
     
     def _save_results(self, results: Dict, output_file: str):
         """Save analysis results to a JSON file."""
@@ -74,6 +101,7 @@ class GeoSearch:
         """Format SEO analysis results for console output."""
         seo = results['seo_analysis']
         metrics = results['advanced_metrics']
+        ai = results['ai_readability']
         
         # Prepare sections
         meta = seo['meta_tags']
@@ -86,33 +114,27 @@ class GeoSearch:
             "\n📊 SEO Analysis Summary",
             "=" * 50,
             
-            f"\n🏆 Overall Score: {metrics['overall_score']}/100",
-            
             "\n📑 Meta Information:",
-            f"• Title: {meta['title']['content']} ({meta['title']['length']} chars) - Score: {metrics['technical_score']['title']['score']}/100",
-            f"• Meta Description: {meta['meta_description']['content'][:100]}..." if meta['meta_description']['content'] else "• Meta Description: Missing",
-            f"• Meta Description Score: {metrics['technical_score']['meta_description']['score']}/100",
+            f"• Title: {meta['title']['content']} ({meta['title']['length']} chars)",
+            f"• Meta Description: {meta['meta_description']['content'][:100]}...",
             f"• Robots Directive: {meta['robots'] or 'Not specified'}",
             
             "\n📝 Content Analysis:",
-            f"• Content Quality Score: {metrics['content_quality']['text_html_ratio']['score']}/100",
             f"• Total Words: {seo['keyword_analysis']['total_words']}",
             f"• Unique Words: {seo['keyword_analysis']['unique_words']}",
             f"• Paragraphs: {content['paragraph_count']}",
             f"• Text/HTML Ratio: {content['text_html_ratio']:.2f}%",
-            f"• Readability Score: {metrics['readability']['paragraph_length']['score']}/100",
             
             "\n🔗 Link Analysis:",
-            f"• Internal Links: {links['internal_links']['count']} (Score: {metrics['link_quality']['internal_links']['score']}/100)",
-            f"• External Links: {links['external_links']['count']} (Score: {metrics['link_quality']['external_links']['score']}/100)",
+            f"• Internal Links: {links['internal_links']['count']}",
+            f"• External Links: {links['external_links']['count']}",
             
             "\n🖼️ Image Analysis:",
             f"• Total Images: {images['total_images']}",
-            f"• Images with Alt Text: {images['images_with_alt']} (Score: {metrics['image_optimization']['alt_text']['score']}/100)",
+            f"• Images with Alt Text: {images['images_with_alt']}",
             f"• Images with Dimensions: {images['images_with_dimensions']}",
             
             "\n⚙️ Technical SEO:",
-            f"• Technical Score: {metrics['technical_score']['technical_score']}/100",
             f"• Viewport Meta: {'✅' if technical['has_viewport'] else '❌'}",
             f"• Favicon: {'✅' if technical['has_favicon'] else '❌'}",
             f"• Structured Data: {'✅' if technical['has_structured_data'] else '❌'}",
@@ -121,23 +143,51 @@ class GeoSearch:
             "\n🔑 Top Keywords:",
         ]
         
-        # Add top 5 keywords with their scores
-        for word, data in list(metrics['keyword_optimization']['keyword_usage'].items())[:5]:
-            summary.append(f"• {word}: {data['density']:.2f}% density (Score: {data['score']}/100)")
-            if data['in_title']:
-                summary[-1] += " [in title]"
-            if data['in_meta_description']:
-                summary[-1] += " [in meta]"
-        
-        # Add recommendations
-        if metrics['recommendations']:
-            summary.extend([
-                "\n📋 Recommendations:",
-                "=" * 50
-            ])
-            for rec in metrics['recommendations']:
-                priority_emoji = "🔴" if rec['priority'] == 'high' else "🟡" if rec['priority'] == 'medium' else "🟢"
-                summary.append(f"{priority_emoji} {rec['message']}")
+        # Add top 5 keywords
+        for word, data in list(seo['keyword_analysis']['top_keywords'].items())[:5]:
+            summary.append(f"• {word}: {data['count']} times ({data['density']:.2f}%)")
+            
+        # Add advanced metrics
+        summary.extend([
+            "\n📈 Advanced Metrics",
+            "=" * 50,
+            
+            "\n📊 Content Quality:",
+            f"• Content Length Score: {metrics['content_quality']['content_length_score']:.2%}",
+            f"• Heading Structure Score: {metrics['content_quality']['heading_structure_score']:.2%}",
+            f"• Paragraph Structure Score: {metrics['content_quality']['paragraph_structure_score']:.2%}",
+            f"• Overall Content Score: {metrics['content_quality']['overall_content_score']:.2%}",
+            
+            "\n📚 Readability:",
+            f"• Flesch Reading Ease: {metrics['readability']['flesch_reading_ease']:.1f}",
+            f"• Readability Level: {metrics['readability']['readability_level']}",
+            f"• Average Sentence Length: {metrics['readability']['avg_sentence_length']:.1f} words",
+            
+            "\n🔍 Keyword Optimization:",
+            f"• Keyword Optimization Score: {metrics['keyword_optimization']['keyword_optimization_score']:.2%}",
+            
+            "\n🔗 Link Quality:",
+            f"• Internal/External Ratio: {metrics['link_quality']['internal_external_ratio']:.2%}",
+            f"• Link Text Quality Score: {metrics['link_quality']['overall_link_quality_score']:.2%}",
+            
+            "\n🖼️ Image Optimization:",
+            f"• Alt Text Score: {metrics['image_optimization']['alt_text_score']:.2%}",
+            f"• Dimensions Score: {metrics['image_optimization']['dimensions_score']:.2%}",
+            f"• Overall Image Score: {metrics['image_optimization']['overall_image_score']:.2%}",
+            
+            "\n📊 Overall Scores:",
+            f"• Technical Score: {metrics['technical_score']['overall_technical_score']:.2%}",
+            f"• Overall SEO Score: {metrics['overall_score']['overall_score']:.2%}",
+        ])
+            
+        # Add AI readability summary
+        summary.extend([
+            "\n🤖 AI Readability:",
+            f"SEO Structure: {ai['seo_structure']['title_tag_length']['explanation']}",
+            f"Semantic Usage: {ai['semantic_structure']['semantic_element_usage']['explanation']}",
+            f"HTML Validation: {ai['semantic_structure']['html_validation_errors']['explanation']}",
+            f"Heading Hierarchy: {ai['semantic_structure']['heading_hierarchy_order']['explanation']}"
+        ])
             
         return "\n".join(summary)
 
