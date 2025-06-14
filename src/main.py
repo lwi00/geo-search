@@ -11,6 +11,8 @@ from .scraper import WebScraper
 from .seo_analyzer import SEOAnalyzer
 from .seo_metrics import SEOMetrics
 from .ai_readability import AIReadabilityAnalyzer
+from .crawlability import CrawlabilityAnalyzer
+from .readability import ReadabilityAnalyzer
 
 class GeoSearch:
     def __init__(self):
@@ -19,13 +21,15 @@ class GeoSearch:
         self.seo_analyzer = SEOAnalyzer()
         self.metrics = SEOMetrics()
         self.ai_readability = AIReadabilityAnalyzer()
+        self.crawlability = CrawlabilityAnalyzer()
+        self.readability = ReadabilityAnalyzer()
         
         # Load environment variables
         load_dotenv()
         
     def analyze_url(self, url: str, output_file: Optional[str] = None) -> Dict:
         """
-        Analyze a URL for SEO and AI readability.
+        Analyze a URL for SEO, AI readability, and crawlability.
         
         Args:
             url (str): URL to analyze
@@ -53,6 +57,12 @@ class GeoSearch:
         # Perform AI readability analysis
         ai_readability = self.analyze_ai_readability(html_content, seo_results)
         
+        # Perform crawlability analysis
+        crawlability_analysis = self.crawlability.analyze_crawlability(url, html_content)
+        
+        # Perform text readability analysis
+        readability_analysis = self.readability.analyze_readability(html_content)
+        
         # Combine results
         results = {
             'url': url,
@@ -60,6 +70,8 @@ class GeoSearch:
             'seo_analysis': seo_results,
             'advanced_metrics': metrics_results,
             'ai_readability': ai_readability,
+            'crawlability': crawlability_analysis,
+            'readability': readability_analysis
         }
         
         # Save results if output file is specified
@@ -102,6 +114,8 @@ class GeoSearch:
         seo = results['seo_analysis']
         metrics = results['advanced_metrics']
         ai = results['ai_readability']
+        crawl = results['crawlability']
+        readability = results['readability']
         
         # Prepare sections
         meta = seo['meta_tags']
@@ -189,6 +203,43 @@ class GeoSearch:
             f"Heading Hierarchy: {ai['semantic_structure']['heading_hierarchy_order']['explanation']}"
         ])
             
+        # Add crawlability summary
+        summary.extend([
+            "\n🕷️ Crawlability:",
+            f"Indexability: {crawl['indexability']['explanation']}",
+            f"Sitemap Status: {crawl['sitemap_status']['explanation']}",
+            f"Text-to-HTML Ratio: {crawl['text_ratio']['explanation']}",
+            f"Page Load Time: {crawl['load_time']['explanation']}",
+            f"Overall Crawlability: {crawl['overall_score']['explanation']}"
+        ])
+            
+        # Add text readability summary
+        summary.extend([
+            "\n📚 Text Readability:",
+            f"Flesch Reading Ease: {readability['flesch_reading_ease']['explanation']}",
+            f"Sentence Length: {readability['average_sentence_length']['explanation']}",
+            f"Lexical Complexity: {readability['lexical_complexity']['explanation']}",
+            f"Overall Readability: {readability['overall_score']['explanation']}"
+        ])
+            
+        # Add LLM bot analysis section
+        if crawl['llm_bot_analysis']['robots_txt_exists']:
+            summary.extend([
+                "\n🤖 LLM Bot Analysis:",
+                f"Robots.txt: {crawl['llm_bot_analysis']['robots_txt_url']}",
+                f"Summary: {crawl['llm_bot_analysis']['summary']}"
+            ])
+            
+            # Add detailed bot directives
+            for bot_name, directive in crawl['llm_bot_analysis']['bot_directives'].items():
+                if directive['user_agents_found']:
+                    summary.append(f"\n{bot_name} ({directive['company']}):")
+                    summary.append(f"• {directive['explanation']}")
+                    if directive['crawl_delay']:
+                        summary.append(f"• Crawl delay: {directive['crawl_delay']}s")
+                    if directive['disallowed_paths']:
+                        summary.append(f"• Blocked paths: {', '.join(directive['disallowed_paths'])}")
+
         return "\n".join(summary)
 
 def main():
