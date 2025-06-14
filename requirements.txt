@@ -3,4 +3,6 @@ beautifulsoup4==4.12.2
 python-dotenv==1.0.0
 google-generativeai==0.3.2
 pytest==8.0.0
-pytest-mock==3.12.0 
+pytest-mock==3.12.0
+html5lib
+nltk==3.8.1 
