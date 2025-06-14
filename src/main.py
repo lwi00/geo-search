@@ -7,9 +7,9 @@ import argparse
 from datetime import datetime
 from typing import Dict, Optional
 from dotenv import load_dotenv
-from .scraper import WebScraper
-from .seo_analyzer import SEOAnalyzer
-from .seo_metrics import SEOMetrics
+from scraper.scraper import WebScraper
+from seo.seo_analyzer import SEOAnalyzer
+from seo.seo_metrics import SEOMetrics
 
 class GeoSearch:
     def __init__(self):
